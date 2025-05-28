@@ -17,6 +17,10 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
+from crime_data.urls import urlpatterns as crime_data_urls
+
 urlpatterns = [
     path('admin/', admin.site.urls),
 ]
+
+urlpatterns.extend(crime_data_urls)
