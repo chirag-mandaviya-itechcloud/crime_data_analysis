@@ -1,5 +1,7 @@
 import csv
 import io
+import numpy as np
+from sklearn.cluster import DBSCAN
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, generics
@@ -8,7 +10,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count
 
 from .models import CrimeData
-from .utils import convert_date
+from .utils import convert_date, get_center
 from .serializers import CrimeDataSerializer
 from .filters import CrimeDataFilter
 
@@ -92,12 +94,46 @@ class GetCountsView(generics.ListAPIView):
 
     def get(self, request, *args, **kwargs):
         records = self.filter_queryset(self.get_queryset())
-        grouped_counts = records.values('crime_type_name').annotate(count=Count('id'))
+        grouped_counts = records.values('crime_type_name').annotate(count=Count('id')).order_by('-count')
 
-        counts = {item['crime_type_name']:item['count'] for item in grouped_counts}
+        # Step 2: Convert to NumPy array
+        coordinates = np.array(
+            [
+                [float(record.latitude), float(record.longitude)] for record in records if record.latitude and record.longitude
+            ]
+        )
+
+        db = DBSCAN(eps=0.01, min_samples=1).fit(coordinates)
+        labels = db.labels_
+
+        hotspots = []
+        unique_labels = set(labels)
+
+        for label in unique_labels:
+            if label == -1:
+                continue
+            cluster_points = coordinates[labels == label]
+            center = cluster_points.mean(axis=0)
+            hotspots.append({
+                "latitude": round(center[0], 6),
+                "longitude": round(center[1], 6),
+                "count": len(cluster_points)
+            })
+
+            # Sort hotspots by count descending
+            hotspots.sort(key=lambda x: x['count'], reverse=True)
+
+            center = get_center([[h.get("latitude"), h.get("longitude")] for h in hotspots])
 
         return Response({
             "Status": "Success",
             "Message": "Count get successfully!!",
-            "Data": counts
+            "Data": {
+                "counts": grouped_counts,
+                "map_data": {
+                    "center": {"lat":center.get("latitude"), "lng": center.get("longitude")},
+                    "hotspots": hotspots
+                },
+                "recent": self.get_serializer(records.order_by('-reported_date'), many=True).data  # for three results
+            }
         }, status=status.HTTP_200_OK)
