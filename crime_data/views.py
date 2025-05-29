@@ -137,3 +137,24 @@ class GetCountsView(generics.ListAPIView):
                 "recent": self.get_serializer(records.order_by('-reported_date'), many=True).data  # for three results
             }
         }, status=status.HTTP_200_OK)
+
+
+class GetChartDataView(generics.ListAPIView):
+    queryset = CrimeData.objects.all()
+    serializer_class = CrimeDataSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = CrimeDataFilter
+
+    def get(self, request, *args, **kwargs):
+        records = self.filter_queryset(self.get_queryset())
+        date_wise_counts = records.values('reported_date').annotate(count=Count('id'))
+        crime_wise_counts = records.values('crime_type_name').annotate(count=Count('id'))
+
+        return Response({
+            "Status": "Success",
+            "Message": "Data get successfully!!",
+            "Data": {
+                "lineChartData": date_wise_counts,
+                "barChartData": crime_wise_counts
+            }
+        }, status=status.HTTP_200_OK)
