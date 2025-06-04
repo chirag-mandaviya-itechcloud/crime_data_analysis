@@ -36,8 +36,19 @@ class CrimeData(models.Model):
     cross_street = models.TextField(null=True, blank=True)
     latitude = models.CharField(max_length=255, null=True, blank=True)
     longitude = models.CharField(max_length=255,null=True, blank=True)
-
+    source = models.CharField(max_length=255, null=True, blank=True)
     objects = models.Manager()
 
     class Meta:
         db_table = 'crime_data'
+
+
+class TwitterData(models.Model):
+    tweet_text = models.TextField()
+    tweet_sentiment = models.IntegerField(default=0, null=True, blank=True)
+    tweet_date = models.DateField(null=True, blank=True)
+
+    objects = models.Manager()
+
+    class Meta:
+        db_table = 'twitter_data'
