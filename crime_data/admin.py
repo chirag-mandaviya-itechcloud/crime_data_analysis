@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import CrimeData, TwitterData
+from .models import CrimeData, TwitterData, WordCloudData
 # Register your models here.
 
 @admin.register(CrimeData)
@@ -11,3 +11,8 @@ class CrimeDataAdmin(admin.ModelAdmin):
 class TwitterDataAdmin(admin.ModelAdmin):
     list_display = ["id", "tweet_text", "tweet_sentiment", "tweet_date"]
     list_filter = ["tweet_sentiment"]
+
+
+@admin.register(WordCloudData)
+class WordClouddataAdmin(admin.ModelAdmin):
+    list_display = ["id", "name", "sentiment", "weight"]

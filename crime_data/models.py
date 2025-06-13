@@ -52,3 +52,13 @@ class TwitterData(models.Model):
 
     class Meta:
         db_table = 'twitter_data'
+
+class WordCloudData(models.Model):
+    name = models.TextField()
+    sentiment = models.FloatField(default=0, null=True, blank=True)
+    weight = models.IntegerField(default=0, null=True, blank=True)
+
+    objects = models.Manager()
+
+    class Meta:
+        db_table = 'word_cloud_data'

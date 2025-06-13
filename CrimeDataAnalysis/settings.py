@@ -11,6 +11,10 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+import logging.config
+import logging
+from CrimeDataAnalysis.logging import LOGGING
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -138,3 +142,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend']
 }
+
+# Logging Settings
+LOGGING_DIR = os.path.join(BASE_DIR, "crime_analyzer_logs")
+os.makedirs(LOGGING_DIR, exist_ok=True)
+LOGGING_CONFIG = None
+logging.config.dictConfig(LOGGING)

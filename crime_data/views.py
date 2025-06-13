@@ -1,7 +1,9 @@
 import csv
 import io
+import logging
 import numpy as np
 import nltk
+import spacy
 from nltk.corpus import stopwords
 from sklearn.cluster import DBSCAN
 from rest_framework.views import APIView
@@ -13,13 +15,17 @@ from django.db.models import Count
 from collections import defaultdict, Counter
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from textblob import TextBlob
+from transformers import pipeline
+from sentence_transformers import SentenceTransformer, util
+import numpy as np
 
-from .models import CrimeData, TwitterData
+
+from .models import CrimeData, TwitterData, WordCloudData
 from .utils import convert_date, get_center, generate_date, round_percent_dict_to_100
-from .serializers import CrimeDataSerializer, TwitterDataSerializer
+from .serializers import CrimeDataSerializer, TwitterDataSerializer, WordCloudDataSerializer
 from .filters import CrimeDataFilter,TwitterDataFilter
 
-nltk.download('stopwords')
+# nltk.download('stopwords')
 
 class CrimeDataUploadView(APIView):
     parser_classes = [MultiPartParser, FormParser]
@@ -278,34 +284,90 @@ class UpdateDateInTweets(APIView):
         }, status=status.HTTP_200_OK)
 
 
-class GetWordCloudData(APIView):
+class MakeWordCloudData(APIView):
     def get(self, request):
+        logger = logging.getLogger("crime_analyzer_logger")
         records = TwitterData.objects.all()
 
+
         # Add words in one list
-        words = []
-        for tweet in records:
-            words += tweet.tweet_text.split()
+        # words = []
+        # for tweet in records:
+        #     words += tweet.tweet_text.split()
 
-        counts = Counter(words)
+        # counts = Counter(words)
 
-        # Ignore common stopwords (you can use nltk.corpus.stopwords instead)
-        stpwords = stopwords.words('english')
-        keywords = [word for word in counts.items() if word[0] not in stpwords]
+        # # Ignore common stopwords (you can use nltk.corpus.stopwords instead)
+        # stpwords = stopwords.words('english')
+        # stpwords.extend(["like", "one", "people", "even", "time", "also", "years", "dont"])
+        # keywords = [word for word in counts.items() if word[0] not in stpwords]
 
-        result = []
-        analyzer = SentimentIntensityAnalyzer()
+        # sorted_keywords = sorted(keywords, key=lambda x: x[1], reverse=True)
 
-        for i, (word, freq) in enumerate(keywords[:31]):
-            result.append({
-                "id": i + 1,
-                "name": word.title(),
-                "weight": freq,  # Scale weight
-                # "sentiment": round(TextBlob(word).sentiment.polarity, 2)
-                "sentiment": analyzer.polarity_scores(word)["compound"]
-            })
+        # result = []
+        # for i, (word, freq) in enumerate(sorted_keywords[:21]):
+        #     result.append({
+        #         "id": i + 1,
+        #         "name": word.title(),
+        #         "weight": freq,  # Scale weight
+        #         "sentiment": round(TextBlob(word).sentiment.polarity, 2)
+        #         # "sentiment": analyzer.polarity_scores(word)["compound"]
+        #     })
+
+
+        # ----------------------------------------------------------------
+        # ----------------------------------------------------------------
+
+        categories = ["Public Safety", "Police Response", "Community Outreach", "Traffic Violations", "Drug Activity",
+              "Property Crime", "Youth Programs", "Emergency Services", "Homelessness", "Street Lighting",
+              "Noise Complaints", "Community Events", "School Safety", "Parking Issues", "Theft" ]
+
+        # Initialize the zero-shot classifier
+        classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+
+        category_stats = defaultdict(lambda: {'count': 0, 'sentiment_sum': 0})
+        tweet_texts = list(records.values_list('tweet_text', flat=True))
+
+        for index, text in enumerate(tweet_texts[:20001], start=1):
+            # Get best-matching category
+            result = classifier(text, categories)
+            best_category = result['labels'][0]
+
+            # Get sentiment
+            sentiment = TextBlob(text).sentiment.polarity  # -1 to +1
+
+            # Aggregate
+            category_stats[best_category]['count'] += 1
+            category_stats[best_category]['sentiment_sum'] += sentiment
+            logger.info(f"{index}: {text}")
+            # print(f"{index}: {text}")
+
+        final_summary = []
+
+        for idx, (category, stats) in enumerate(category_stats.items(), start=1):
+            count = stats['count']
+            avg_sentiment = stats['sentiment_sum'] / count if count > 0 else 0
+            final_summary.append(WordCloudData(
+                weight=count,
+                sentiment=round(avg_sentiment, 3),
+                name=category,
+            ))
+
+        WordCloudData.objects.bulk_create(final_summary, batch_size=20)
 
         return Response({
             "status": "Success",
-            "topics": result
+            "topics": "Topics Stored Successfully"
+        }, status=status.HTTP_200_OK)
+
+
+class GetWordCloudData(generics.ListAPIView):
+    queryset = WordCloudData.objects.all()
+    serializer_class = WordCloudDataSerializer
+
+    def get(self, request, *args, **kwargs):
+        res = super().get(request, *args, **kwargs)
+        return Response({
+            "status":"Success",
+            "topics": res.data
         }, status=status.HTTP_200_OK)

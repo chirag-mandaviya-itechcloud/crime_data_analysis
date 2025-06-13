@@ -2,6 +2,7 @@
 import random
 from datetime import datetime, timedelta
 import numpy as np
+import itertools
 
 def convert_date(date_str):
     dt = datetime.strptime(date_str.strip(), "%m/%d/%Y %H:%M")
@@ -38,8 +39,11 @@ def round_percent_dict_to_100(percent_dict):
         reverse=True
     )
 
-    # Step 3: Distribute remaining points
-    for i in range(remainder):
-        floored[decimals[i][0]] += 1
+    # Step 3: Distribute remaining points using cycle to avoid IndexError
+    if decimals:
+        cycle_iter = itertools.cycle(decimals)
+        for _ in range(remainder):
+            k, _ = next(cycle_iter)
+            floored[k] = floored.get(k, 0) + 1
 
     return floored
